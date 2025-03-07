@@ -17,22 +17,38 @@ else
     ./renew-certs.sh
 fi
 
-# Check if Cloudflare proxy is enabled (using API)
-echo -n "Checking Cloudflare proxy status: "
-CF_STATUS=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?name=$DOMAIN" \
-    -H "Authorization: Bearer $CF_TOKEN" \
-    -H "Content-Type: application/json")
-
-PROXIED=$(echo "$CF_STATUS" | grep -o '"proxied":true' | wc -l)
-if [ "$PROXIED" -gt 0 ]; then
-    echo "OK (Cloudflare proxy is enabled)"
+# Check if CLOUDFLARE_TUNNEL_TOKEN is in .env
+echo -n "Checking Cloudflare Tunnel token: "
+if grep -q "CLOUDFLARE_TUNNEL_TOKEN" .env; then
+    echo "OK (Tunnel token found in .env)"
 else
-    echo "WARNING - Cloudflare proxy may not be enabled"
-    echo "Consider enabling proxy in Cloudflare to hide your server IP"
+    echo "ERROR - No tunnel token found in .env"
+    echo "Please add your Cloudflare Tunnel token to .env file:"
+    echo "CLOUDFLARE_TUNNEL_TOKEN=your_token_here"
+fi
+
+# Check if Cloudflare Tunnel is running
+echo -n "Checking Cloudflare Tunnel status: "
+if docker-compose ps | grep -q "cloudflared.*Up"; then
+    echo "OK (Cloudflare Tunnel is running)"
+else
+    echo "ERROR - Cloudflare Tunnel is not running"
+    echo "Attempting to restart..."
+    docker-compose up -d cloudflared
+fi
+
+# Check Cloudflare Tunnel logs for connectivity issues
+echo -n "Checking Cloudflare Tunnel connectivity: "
+if docker-compose logs --tail=50 cloudflared | grep -q "Connection.*registered"; then
+    echo "OK (Tunnel successfully connected to Cloudflare)"
+else 
+    echo "WARNING - Tunnel connectivity issues detected"
+    echo "Check Cloudflare Tunnel logs for details:"
+    echo "docker-compose logs cloudflared"
 fi
 
 # Check Docker container status
-echo -n "Checking container status: "
+echo -n "Checking V2Ray container status: "
 if docker-compose ps | grep -q "v2ray.*Up"; then
     echo "OK (V2Ray container is running)"
 else
@@ -41,21 +57,18 @@ else
     docker-compose up -d v2ray
 fi
 
-# Check for any exposed ports
+# Since we're using Cloudflare Tunnel, we don't need exposed ports
 echo -n "Checking for unnecessary exposed ports: "
 EXPOSED_PORTS=$(netstat -tulpn 2>/dev/null | grep LISTEN | grep -v "127.0.0.1\|::1" | awk '{print $4}' | awk -F: '{print $NF}')
-EXPECTED_PORTS="443"
 UNEXPECTED_PORTS=0
 
 for PORT in $EXPOSED_PORTS; do
-    if ! echo "$EXPECTED_PORTS" | grep -q "$PORT"; then
-        echo "WARNING - Unexpected port open: $PORT"
-        UNEXPECTED_PORTS=1
-    fi
+    echo "WARNING - Unexpected port open: $PORT"
+    UNEXPECTED_PORTS=1
 done
 
 if [ "$UNEXPECTED_PORTS" -eq 0 ]; then
-    echo "OK (No unexpected ports open)"
+    echo "OK (No exposed ports, as expected with Cloudflare Tunnel)"
 fi
 
 # Check firewall status
@@ -64,8 +77,7 @@ if command -v ufw &> /dev/null && ufw status | grep -q "Status: active"; then
     echo "OK (Firewall is active)"
 else
     echo "WARNING - Firewall may not be enabled"
-    echo "Consider enabling ufw or another firewall:"
-    echo "sudo ufw allow 443/tcp && sudo ufw enable"
+    echo "Consider enabling ufw or another firewall for additional security"
 fi
 
 # Check V2Ray config file

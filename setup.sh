@@ -34,7 +34,16 @@ CF_ZONE_ID=${CF_ZONE_ID:-$DEFAULT_CF_ZONE_ID}
 UUID=$(cat /proc/sys/kernel/random/uuid)
 
 # Create necessary directories
-mkdir -p config certs acme logs/v2ray
+mkdir -p config certs acme logs/v2ray cloudflared
+
+# Setup Cloudflare Tunnel
+echo "Setting up Cloudflare Tunnel..."
+echo "You'll need to create a Cloudflare Tunnel in your Cloudflare Zero Trust dashboard."
+echo "1. Go to https://dash.teams.cloudflare.com/ and sign in"
+echo "2. Navigate to Access > Tunnels and click 'Create a tunnel'"
+echo "3. Give your tunnel a name (e.g., 'v2ray-tunnel')"
+echo "4. You'll need to download the credentials file and get the Tunnel ID"
+echo ""
 
 # Create .env file
 cat > .env << EOF
@@ -56,30 +65,6 @@ if ! command -v docker &> /dev/null || ! command -v docker-compose &> /dev/null;
     apt-get install -y docker.io docker-compose
     systemctl enable docker
     systemctl start docker
-fi
-
-# Get server IP address
-SERVER_IPV4=$(curl -s https://api.ipify.org || curl -s http://ifconfig.me)
-echo "Detected IPv4 address: $SERVER_IPV4"
-
-# Ask user if they want to automatically create DNS records in Cloudflare
-read -p "Do you want to automatically create DNS records in Cloudflare? (y/n): " create_dns
-if [ "$create_dns" = "y" ]; then
-    echo "Creating DNS records..."
-    
-    # Create A record for IPv4
-    curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" \
-        -H "Authorization: Bearer $CF_TOKEN" \
-        -H "Content-Type: application/json" \
-        --data "{
-            \"type\":\"A\",
-            \"name\":\"$DOMAIN\",
-            \"content\":\"$SERVER_IPV4\",
-            \"ttl\":120,
-            \"proxied\":true
-        }"
-    
-    echo "DNS records created."
 fi
 
 # Register acme.sh account first
@@ -113,6 +98,27 @@ if [ ! -f "./certs/fullchain.crt" ] || [ ! -f "./certs/private.key" ]; then
     fi
 fi
 
+# Setup Cloudflare Tunnel with token
+echo "Setting up Cloudflare Tunnel with token..."
+echo "You'll need the Tunnel Token from your Cloudflare Zero Trust dashboard."
+echo "1. In the Cloudflare Zero Trust dashboard (https://one.dash.cloudflare.com/)"
+echo "2. Navigate to Networks > Tunnels"
+echo "3. Create a new tunnel with a name (e.g., 'v2ray-tunnel')"
+echo "4. Copy the tunnel token (starts with 'eyJ...')"
+echo "5. Set up a Public Hostname pointing to 'http://proxy:80'"
+echo ""
+read -p "Enter your Cloudflare Tunnel Token: " CLOUDFLARE_TUNNEL_TOKEN
+
+# Add tunnel token to .env file
+echo "CLOUDFLARE_TUNNEL_TOKEN=$CLOUDFLARE_TUNNEL_TOKEN" >> .env
+
+# Important note for cloudflare tunnel configuration
+echo ""
+echo "IMPORTANT: When setting up your Public Hostname in Cloudflare Zero Trust Dashboard:"
+echo "1. For the service URL, use 'http://proxy:80'"
+echo "2. The proxy service will handle the HTTP to HTTPS conversion"
+echo ""
+
 # Rebuild and start all services
 docker-compose up -d --build
 
@@ -125,10 +131,10 @@ CLIENT_CONFIG=$(cat <<EOF
   "port": "443",
   "id": "$UUID",
   "aid": "0",
-  "net": "tcp",
+  "net": "ws",
   "type": "none",
-  "host": "",
-  "path": "",
+  "host": "$DOMAIN",
+  "path": "/ws",
   "tls": "tls"
 }
 EOF
@@ -138,7 +144,7 @@ EOF
 VMESS_URL="vmess://$(echo $CLIENT_CONFIG | base64 -w 0)"
 
 echo "========================================================"
-echo "V2Ray server has been set up successfully!"
+echo "V2Ray server has been set up successfully with Cloudflare Tunnel!"
 echo "========================================================"
 echo "Server domain: $DOMAIN"
 echo "UUID: $UUID"
@@ -157,10 +163,9 @@ echo "Network: tcp"
 echo "TLS: enabled"
 echo "========================================================"
 
-# Instructions for Cloudflare proxy setup
-echo "Don't forget to set up Cloudflare as follows:"
-echo "1. Make sure your domain's nameservers are set to Cloudflare"
-echo "2. In Cloudflare DNS settings, add an A record pointing to your server IP"
-echo "3. Enable the proxy (orange cloud) for that record to hide your origin IP"
-echo "4. In SSL/TLS settings, set the encryption mode to 'Full (strict)'"
+echo "Cloudflare Tunnel has been configured:"
+echo "1. Your server is now accessible via Cloudflare Tunnel with no open ports"
+echo "2. Traffic is encrypted and secured without needing a public IP"
+echo "3. The Cloudflare Tunnel automatically manages DNS records"
+echo "4. No port forwarding is required on your router"
 echo "========================================================"

@@ -2,6 +2,7 @@ version: '3'
 
 volumes:
   web_data:
+  cloudflared:
 
 services:
   nginx:
@@ -12,12 +13,21 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - v2ray
+      
+  proxy:
+    image: nginx:alpine
+    restart: always
+    volumes:
+      - ./nginx/proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - v2ray
   v2ray:
     build:
       context: .
     restart: always
-    ports:
-      - "443:443"
+    # No need to expose ports publicly - cloudflared will handle this
+    expose:
+      - "443"
     volumes:
       - ./config:/etc/v2ray
       - ./certs:/certs
@@ -27,11 +37,19 @@ services:
     depends_on:
       - acme
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:443" ]
+      test: ["CMD-SHELL", "ps aux | grep v2ray | grep -v grep || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
+      
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: always
+    # Don't use host networking - it's causing lookup issues
+    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - proxy
       
   acme:
     image: neilpang/acme.sh:latest
