@@ -17,6 +17,19 @@ config/config.json
 logs/
 *.log
 
+# Cloudflare Tunnel data
+cloudflared/
+
 # System files
 .DS_Store
 Thumbs.db
+
+# Backup files
+*.bak
+*~
+*.swp
+
+# Runtime data
+*.pid
+*.seed
+*.pid.lock
