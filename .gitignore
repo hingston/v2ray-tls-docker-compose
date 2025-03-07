@@ -1,0 +1,22 @@
+.idea
+.venv
+
+# Environment variables
+.env
+
+# Certificates
+certs/
+
+# acme.sh data
+acme/
+
+# Generated config files
+config/config.json
+
+# Logs
+logs/
+*.log
+
+# System files
+.DS_Store
+Thumbs.db
