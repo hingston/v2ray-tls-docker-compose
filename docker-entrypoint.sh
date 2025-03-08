@@ -7,7 +7,7 @@ while [ ! -f /certs/fullchain.crt ] || [ ! -f /certs/private.key ]; do
   sleep 5
 done
 
-echo "Certificates found, starting V2Ray..."
+echo "Certificates found, starting Xray..."
 
-# Execute the v2ray command with the provided arguments
-exec v2ray "$@"
+# Execute the xray command with the provided arguments
+exec xray "$@"

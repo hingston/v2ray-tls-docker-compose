@@ -12,7 +12,7 @@ services:
       - ./web:/usr/share/nginx/html:ro
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - v2ray
+      - xray
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost", "||", "exit", "1"]
       interval: 30s
@@ -25,13 +25,13 @@ services:
     volumes:
       - ./nginx/proxy.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - v2ray
+      - xray
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost", "||", "exit", "1"]
       interval: 30s
       timeout: 5s
       retries: 3
-  v2ray:
+  xray:
     build:
       context: .
     restart: always
@@ -39,15 +39,15 @@ services:
     expose:
       - "443"
     volumes:
-      - ./config:/etc/v2ray
+      - ./config:/etc/xray
       - ./certs:/certs
-      - ./logs/v2ray:/var/log/v2ray
+      - ./logs/xray:/var/log/xray
     environment:
-      - V2RAY_DOMAIN=${DOMAIN:-example.com}
+      - XRAY_DOMAIN=${DOMAIN:-example.com}
     depends_on:
       - acme
     healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep v2ray | grep -v grep || exit 1"]
+      test: ["CMD-SHELL", "ps aux | grep xray | grep -v grep || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

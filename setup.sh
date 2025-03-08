@@ -30,18 +30,18 @@ CF_ACCOUNT_ID=${CF_ACCOUNT_ID:-$DEFAULT_CF_ACCOUNT_ID}
 read -p "Enter your Cloudflare Zone ID for $DOMAIN [$DEFAULT_CF_ZONE_ID]: " CF_ZONE_ID
 CF_ZONE_ID=${CF_ZONE_ID:-$DEFAULT_CF_ZONE_ID}
 
-# Generate a random UUID for V2Ray
+# Generate a random UUID for Xray
 UUID=$(cat /proc/sys/kernel/random/uuid)
 
 # Create necessary directories
-mkdir -p config certs acme logs/v2ray cloudflared
+mkdir -p config certs acme logs/xray cloudflared
 
 # Setup Cloudflare Tunnel
 echo "Setting up Cloudflare Tunnel..."
 echo "You'll need to create a Cloudflare Tunnel in your Cloudflare Zero Trust dashboard."
 echo "1. Go to https://dash.teams.cloudflare.com/ and sign in"
 echo "2. Navigate to Access > Tunnels and click 'Create a tunnel'"
-echo "3. Give your tunnel a name (e.g., 'v2ray-tunnel')"
+echo "3. Give your tunnel a name (e.g., 'xray-tunnel')"
 echo "4. You'll need to download the credentials file and get the Tunnel ID"
 echo ""
 
@@ -103,7 +103,7 @@ echo "Setting up Cloudflare Tunnel with token..."
 echo "You'll need the Tunnel Token from your Cloudflare Zero Trust dashboard."
 echo "1. In the Cloudflare Zero Trust dashboard (https://one.dash.cloudflare.com/)"
 echo "2. Navigate to Networks > Tunnels"
-echo "3. Create a new tunnel with a name (e.g., 'v2ray-tunnel')"
+echo "3. Create a new tunnel with a name (e.g., 'xray-tunnel')"
 echo "4. Copy the tunnel token (starts with 'eyJ...')"
 echo "5. Set up a Public Hostname pointing to 'http://proxy:80'"
 echo ""
@@ -122,44 +122,27 @@ echo ""
 # Rebuild and start all services
 docker-compose up -d --build
 
-# Generate client configuration for Shadowrocket
-CLIENT_CONFIG=$(cat <<EOF
-{
-  "v": "2",
-  "ps": "V2Ray-$(hostname)",
-  "add": "$DOMAIN",
-  "port": "443",
-  "id": "$UUID",
-  "aid": "0",
-  "net": "ws",
-  "type": "none",
-  "host": "$DOMAIN",
-  "path": "/ws",
-  "tls": "tls"
-}
-EOF
-)
-
-# Convert to base64 for VMess URL
-VMESS_URL="vmess://$(echo $CLIENT_CONFIG | base64 -w 0)"
+# Generate VLESS URL
+VLESS_URL="vless://$UUID@$DOMAIN:443?type=ws&security=tls&path=%2Fws&host=$DOMAIN&sni=$DOMAIN#Xray-$(hostname)"
 
 echo "========================================================"
-echo "V2Ray server has been set up successfully with Cloudflare Tunnel!"
+echo "Xray server has been set up successfully with Cloudflare Tunnel!"
 echo "========================================================"
 echo "Server domain: $DOMAIN"
 echo "UUID: $UUID"
 echo ""
-echo "VMess URL for clients like Shadowrocket:"
-echo $VMESS_URL
+echo "VLESS URL for clients:"
+echo $VLESS_URL
 echo ""
 echo "To add to clients manually, use these details:"
-echo "Protocol: VMess"
+echo "Protocol: VLESS"
 echo "Server: $DOMAIN"
 echo "Port: 443"
 echo "UUID: $UUID"
-echo "AlterID: 0"
-echo "Security: auto"
-echo "Network: tcp"
+echo "Flow: xtls-rprx-direct"
+echo "Encryption: none"
+echo "Network: ws"
+echo "Path: /ws"
 echo "TLS: enabled"
 echo "========================================================"
 
@@ -168,4 +151,4 @@ echo "1. Your server is now accessible via Cloudflare Tunnel with no open ports"
 echo "2. Traffic is encrypted and secured without needing a public IP"
 echo "3. The Cloudflare Tunnel automatically manages DNS records"
 echo "4. No port forwarding is required on your router"
-echo "========================================================"
+echo "========================================================="
